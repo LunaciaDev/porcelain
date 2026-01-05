@@ -12,36 +12,30 @@ struct Vertex {
     tex_coord: [f32; 2],
 }
 
-struct State {
+struct RendererState {
+    vertices: Vec<Vertex>,
+    indices: Vec<u16>,
+
     pipeline: Pipeline,
     bindings: Bindings,
     context: Box<dyn RenderingBackend>,
 }
 
-impl State {
-    pub fn new() -> State {
+impl RendererState {
+    pub fn new() -> RendererState {
         let mut context: Box<dyn RenderingBackend> = window::new_rendering_backend();
         let white_texture = context.new_texture_from_rgba8(1, 1, &[255, 255, 255, 255]);
 
-        #[rustfmt::skip]
-        let vertices: [Vertex; 4] = [
-            Vertex { pos: [ 0.,     0. ], color: [   0.,   0.,   0., 255. ], tex_coord: [ 0., 0. ] },
-            Vertex { pos: [ 600.,   0. ], color: [ 255.,   0.,   0., 255. ], tex_coord: [ 0., 0. ] },
-            Vertex { pos: [ 0.,   600. ], color: [   0., 255.,   0., 255. ], tex_coord: [ 0., 0. ] },
-            Vertex { pos: [ 600., 600. ], color: [   0.,   0., 255., 255. ], tex_coord: [ 0., 0. ] }
-        ];
-
         let vertex_buffer = context.new_buffer(
             miniquad::BufferType::VertexBuffer,
-            miniquad::BufferUsage::Immutable,
-            miniquad::BufferSource::slice(&vertices),
+            miniquad::BufferUsage::Stream,
+            miniquad::BufferSource::empty::<Vertex>(4),
         );
 
-        let indices: [u16; 6] = [0, 1, 2, 1, 2, 3];
         let index_buffer = context.new_buffer(
             miniquad::BufferType::IndexBuffer,
-            miniquad::BufferUsage::Immutable,
-            miniquad::BufferSource::slice(&indices),
+            miniquad::BufferUsage::Stream,
+            miniquad::BufferSource::empty::<u16>(6),
         );
 
         let bindings = Bindings {
@@ -76,7 +70,34 @@ impl State {
             PipelineParams::default(),
         );
 
-        State {
+        let vertices: Vec<Vertex> = vec![
+            Vertex {
+                pos: [0., 0.],
+                color: [0., 0., 0., 255.],
+                tex_coord: [0., 0.],
+            },
+            Vertex {
+                pos: [600., 0.],
+                color: [255., 0., 0., 255.],
+                tex_coord: [0., 0.],
+            },
+            Vertex {
+                pos: [0., 600.],
+                color: [0., 255., 0., 255.],
+                tex_coord: [0., 0.],
+            },
+            Vertex {
+                pos: [600., 600.],
+                color: [0., 0., 255., 255.],
+                tex_coord: [0., 0.],
+            },
+        ];
+        let indices = vec![0, 1, 2, 1, 2, 3];
+
+        RendererState {
+            #[rustfmt::skip]
+            vertices,
+            indices,
             pipeline,
             bindings,
             context,
@@ -84,8 +105,12 @@ impl State {
     }
 }
 
-impl EventHandler for State {
-    fn update(&mut self) {}
+impl EventHandler for RendererState {
+    fn update(&mut self) {
+        self.vertices.iter_mut().for_each(|vertex| {
+            vertex.pos[0] += 1.;
+        });
+    }
 
     fn draw(&mut self) {
         let (width, height) = miniquad::window::screen_size();
@@ -99,6 +124,14 @@ impl EventHandler for State {
 
         self.context.apply_pipeline(&self.pipeline);
         self.context.apply_bindings(&self.bindings);
+        self.context.buffer_update(
+            self.bindings.vertex_buffers[0],
+            miniquad::BufferSource::slice(&self.vertices),
+        );
+        self.context.buffer_update(
+            self.bindings.index_buffer,
+            miniquad::BufferSource::slice(&self.indices),
+        );
         self.context
             .apply_uniforms(UniformsSource::table(&uniforms));
         self.context.draw(0, 6, 1);
@@ -120,5 +153,5 @@ fn main() {
         conf::AppleGfxApi::OpenGl
     };
 
-    miniquad::start(conf, move || Box::new(State::new()));
+    miniquad::start(conf, move || Box::new(RendererState::new()));
 }
