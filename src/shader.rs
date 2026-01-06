@@ -15,7 +15,7 @@ uniform mat4 projection;
 void main() {
     gl_Position = projection * model * vec4(in_pos, 0, 1);
     uv = in_texcoord;
-    color = in_color / 255.0;
+    color = in_color;
 }";
 
 pub const FRAGMENT: &str = r"
@@ -59,7 +59,7 @@ vertex RasterizerData vertexShader(Vertex v [[stage_in]], constant Uniforms& uni
     RasterizerData out;
 
     out.position = uniforms.projection * uniforms.model * float4(v.in_pos, 0, 1);
-    out.color = v.in_color / 255.0;
+    out.color = v.in_color;
     out.uv = v.in_texcoord
 
     return out;
