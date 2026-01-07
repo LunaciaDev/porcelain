@@ -1,5 +1,6 @@
 use porcelain::{
     color::Color,
+    conf::WindowConfig,
     render::{DrawContext, EventListener},
 };
 
@@ -25,10 +26,15 @@ impl EventListener for AppState {
 }
 
 fn main() {
-    let app_state: AppState = AppState {
+    let window_config = WindowConfig {
+        window_title: "App".to_string(),
+        ..Default::default()
+    };
+
+    let app_state = AppState {
         rect_pos: [0., 0.],
         rect_size: [600., 600.],
     };
 
-    porcelain::start(app_state);
+    porcelain::start(window_config, app_state);
 }
