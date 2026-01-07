@@ -1,9 +1,7 @@
-
-mod color;
-mod shader;
-mod render;
-
-use crate::{color::Color, render::{DrawContext, EventListener, start}};
+use porcelain::{
+    color::Color,
+    render::{DrawContext, EventListener},
+};
 
 struct AppState {
     rect_pos: [f32; 2],
@@ -32,5 +30,5 @@ fn main() {
         rect_size: [600., 600.],
     };
 
-    start(app_state);
+    porcelain::start(app_state);
 }

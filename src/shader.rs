@@ -85,5 +85,5 @@ pub fn meta() -> ShaderMeta {
 #[repr(C)]
 pub struct Uniforms {
     pub model: glam::Mat4,
-    pub projection: glam::Mat4
+    pub projection: glam::Mat4,
 }

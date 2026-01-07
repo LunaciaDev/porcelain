@@ -5,7 +5,7 @@ use crate::shader;
 use crate::shader::Uniforms;
 use miniquad::{
     Bindings, BufferLayout, EventHandler, Pipeline, PipelineParams, RenderingBackend,
-    UniformsSource, VertexAttribute, conf, window,
+    UniformsSource, VertexAttribute, window,
 };
 
 pub trait EventListener {
@@ -35,7 +35,7 @@ pub struct DrawContext {
     index_buffer: Vec<u16>,
 }
 
-struct RendererState<T> {
+pub struct RendererContext<T> {
     draw_context: DrawContext,
 
     last_update_time: f64,
@@ -47,14 +47,16 @@ struct RendererState<T> {
     context: Box<dyn RenderingBackend>,
 }
 
-impl DrawContext {
-    pub fn new() -> DrawContext {
-        DrawContext {
+impl Default for DrawContext {
+    fn default() -> Self {
+        Self {
             vertex_buffer: Vec::with_capacity(10000),
             index_buffer: Vec::with_capacity(10000),
         }
     }
+}
 
+impl DrawContext {
     pub fn clear(&mut self) {
         self.vertex_buffer.clear();
         self.index_buffer.clear();
@@ -75,8 +77,8 @@ impl DrawContext {
     }
 }
 
-impl<T: EventListener> RendererState<T> {
-    fn new(app_listener: T) -> RendererState<T> {
+impl<T: EventListener> RendererContext<T> {
+    pub fn new(app_listener: T) -> RendererContext<T> {
         let mut context: Box<dyn RenderingBackend> = window::new_rendering_backend();
         let white_texture = context.new_texture_from_rgba8(1, 1, &[255, 255, 255, 255]);
 
@@ -124,18 +126,18 @@ impl<T: EventListener> RendererState<T> {
             PipelineParams::default(),
         );
 
-        RendererState {
+        RendererContext {
             app_listener,
             pipeline,
             bindings,
             context,
-            draw_context: DrawContext::new(),
+            draw_context: DrawContext::default(),
             last_update_time: miniquad::date::now(),
         }
     }
 }
 
-impl<T: EventListener> EventHandler for RendererState<T> {
+impl<T: EventListener> EventHandler for RendererContext<T> {
     fn update(&mut self) {
         let current_time = miniquad::date::now();
         self.app_listener
@@ -144,6 +146,8 @@ impl<T: EventListener> EventHandler for RendererState<T> {
     }
 
     fn draw(&mut self) {
+        self.app_listener.draw(&mut self.draw_context);
+
         let (width, height) = miniquad::window::screen_size();
         let dpi = miniquad::window::dpi_scale();
         let uniforms = Uniforms {
@@ -155,8 +159,6 @@ impl<T: EventListener> EventHandler for RendererState<T> {
 
         self.context.apply_pipeline(&self.pipeline);
         self.context.apply_bindings(&self.bindings);
-
-        self.app_listener.draw(&mut self.draw_context);
 
         self.context.buffer_update(
             self.bindings.vertex_buffers[0],
@@ -176,17 +178,4 @@ impl<T: EventListener> EventHandler for RendererState<T> {
 
         self.draw_context.clear();
     }
-}
-
-pub fn start<T: EventListener + 'static>(user_state: T) {
-    let mut conf = conf::Conf::default();
-
-    let metal = std::env::args().nth(1).as_deref() == Some("metal");
-    conf.platform.apple_gfx_api = if metal {
-        conf::AppleGfxApi::Metal
-    } else {
-        conf::AppleGfxApi::OpenGl
-    };
-
-    miniquad::start(conf, move || Box::new(RendererState::new(user_state)));
 }
