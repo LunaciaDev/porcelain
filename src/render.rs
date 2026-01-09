@@ -1,15 +1,15 @@
-use std::vec;
+use std::{cell::RefCell, rc::Rc, vec};
 
 use crate::color::Color;
 use crate::shader;
 use crate::shader::Uniforms;
 use miniquad::{
-    Bindings, BufferLayout, EventHandler, Pipeline, PipelineParams, RenderingBackend,
-    UniformsSource, VertexAttribute, window,
+    Bindings, BufferLayout, EventHandler, Pipeline, PipelineParams, RenderingBackend, TextureId,
+    TextureParams, UniformsSource, VertexAttribute, window,
 };
 
 pub trait EventListener {
-    fn update(&mut self, dt: f64);
+    fn update(&mut self, texture_context: &TextureContext, dt: f64);
     fn draw(&self, draw_context: &mut DrawContext);
 }
 
@@ -30,13 +30,33 @@ impl Vertex {
     }
 }
 
+#[derive(Default)]
+struct VecSlice {
+    offset: usize,
+    length: usize,
+}
+
+struct DrawCall {
+    vertex_indices_slice: VecSlice,
+    index_indices_slice: VecSlice,
+
+    texture: TextureId,
+}
+
 pub struct DrawContext {
     vertex_buffer: Vec<Vertex>,
     index_buffer: Vec<u16>,
+    draw_call_vec: Vec<DrawCall>,
+    default_texture: TextureId,
+}
+
+pub struct TextureContext {
+    backend: Rc<RefCell<Box<dyn RenderingBackend>>>,
 }
 
 pub struct RendererContext<T> {
     draw_context: DrawContext,
+    texture_context: TextureContext,
 
     last_update_time: f64,
 
@@ -44,25 +64,102 @@ pub struct RendererContext<T> {
 
     pipeline: Pipeline,
     bindings: Bindings,
-    context: Box<dyn RenderingBackend>,
+    backend: Rc<RefCell<Box<dyn RenderingBackend>>>,
 }
 
-impl Default for DrawContext {
-    fn default() -> Self {
+impl DrawCall {
+    fn new(texture: TextureId) -> Self {
         Self {
-            vertex_buffer: Vec::with_capacity(10000),
-            index_buffer: Vec::with_capacity(10000),
+            texture,
+            vertex_indices_slice: Default::default(),
+            index_indices_slice: Default::default(),
         }
     }
 }
 
+impl TextureContext {
+    fn new(backend: Rc<RefCell<Box<dyn RenderingBackend>>>) -> Self {
+        Self { backend }
+    }
+
+    pub fn register_texture_rgba8(&self, width: u16, height: u16, buffer: &[u8]) -> TextureId {
+        let mut backend_mut = self.backend.borrow_mut();
+
+        assert_eq!(
+            width as usize * height as usize * 4,
+            buffer.len(),
+            "Expected {} * {} * 4 = {} bytes, got {} bytes in buffer",
+            width,
+            height,
+            width * height * 4,
+            buffer.len()
+        );
+
+        backend_mut.new_texture_from_data_and_format(
+            buffer,
+            TextureParams {
+                width: width as u32,
+                height: height as u32,
+                format: miniquad::TextureFormat::RGBA8,
+                ..Default::default()
+            },
+        )
+    }
+
+    pub fn register_texture_rgb8(&self, width: u16, height: u16, buffer: &[u8]) -> TextureId {
+        let mut backend_mut = self.backend.borrow_mut();
+
+        assert_eq!(
+            width as usize * height as usize * 3,
+            buffer.len(),
+            "Expected {} * {} * 3 = {} bytes, got {} bytes in buffer",
+            width,
+            height,
+            width * height * 3,
+            buffer.len()
+        );
+
+        backend_mut.new_texture_from_data_and_format(
+            buffer,
+            TextureParams {
+                width: width as u32,
+                height: height as u32,
+                format: miniquad::TextureFormat::RGB8,
+                ..Default::default()
+            },
+        )
+    }
+}
+
 impl DrawContext {
+    fn new(default_texture: TextureId) -> Self {
+        Self {
+            vertex_buffer: Vec::with_capacity(10000),
+            index_buffer: Vec::with_capacity(10000),
+            draw_call_vec: Vec::new(),
+            default_texture,
+        }
+    }
+
     pub fn clear(&mut self) {
         self.vertex_buffer.clear();
         self.index_buffer.clear();
+        self.draw_call_vec.clear();
     }
 
     pub fn draw_rect(&mut self, x: f32, y: f32, w: f32, h: f32, color: Color) {
+        self.draw_rect_textured(x, y, w, h, self.default_texture, color);
+    }
+
+    pub fn draw_rect_textured(
+        &mut self,
+        x: f32,
+        y: f32,
+        w: f32,
+        h: f32,
+        texture: TextureId,
+        color: Color,
+    ) {
         #[rustfmt::skip]
         let vertices = [
             Vertex::new(    x,     y, 0., 0., color),
@@ -70,25 +167,48 @@ impl DrawContext {
             Vertex::new(x + w,     y, 0., 0., color),
             Vertex::new(x + w, y + h, 0., 0., color)
         ];
-        let indices = [0, 1, 3, 0, 3, 2];
+        let mut indices: [u16; 6] = [0, 1, 3, 0, 3, 2];
 
-        self.vertex_buffer.extend(vertices);
+        match self.draw_call_vec.last() {
+            Some(draw_call) => {
+                if draw_call.texture != texture {
+                    self.draw_call_vec.push(DrawCall::new(texture));
+                }
+            }
+            None => self.draw_call_vec.push(DrawCall::new(texture)),
+        }
+
+        let current_draw_call = self
+            .draw_call_vec
+            .last_mut()
+            .expect("A draw call is created before if empty");
+        current_draw_call.index_indices_slice.length += indices.len();
+        for index in indices.iter_mut() {
+            // vertex_indices length should be clamped shorter than u16
+            *index += current_draw_call.vertex_indices_slice.length as u16;
+        }
         self.index_buffer.extend(indices);
+        current_draw_call.vertex_indices_slice.length += vertices.len();
+        self.vertex_buffer.extend(vertices);
     }
 }
 
 impl<T: EventListener> RendererContext<T> {
     pub fn new(app_listener: T) -> RendererContext<T> {
-        let mut context: Box<dyn RenderingBackend> = window::new_rendering_backend();
-        let white_texture = context.new_texture_from_rgba8(1, 1, &[255, 255, 255, 255]);
+        let backend = Rc::new(RefCell::new(window::new_rendering_backend()));
 
-        let vertex_buffer = context.new_buffer(
+        let backend_info = backend.borrow().info().backend;
+        let mut backend_mut = backend.borrow_mut();
+
+        let white_texture = backend_mut.new_texture_from_rgba8(1, 1, &[255, 255, 255, 255]);
+
+        let vertex_buffer = backend_mut.new_buffer(
             miniquad::BufferType::VertexBuffer,
             miniquad::BufferUsage::Stream,
             miniquad::BufferSource::empty::<Vertex>(4),
         );
 
-        let index_buffer = context.new_buffer(
+        let index_buffer = backend_mut.new_buffer(
             miniquad::BufferType::IndexBuffer,
             miniquad::BufferUsage::Stream,
             miniquad::BufferSource::empty::<u16>(6),
@@ -100,9 +220,9 @@ impl<T: EventListener> RendererContext<T> {
             images: vec![white_texture],
         };
 
-        let shader = context
+        let shader = backend_mut
             .new_shader(
-                match context.info().backend {
+                match backend_info {
                     miniquad::Backend::OpenGl => miniquad::ShaderSource::Glsl {
                         vertex: shader::VERTEX,
                         fragment: shader::FRAGMENT,
@@ -115,7 +235,7 @@ impl<T: EventListener> RendererContext<T> {
             )
             .unwrap();
 
-        let pipeline = context.new_pipeline(
+        let pipeline = backend_mut.new_pipeline(
             &[BufferLayout::default()],
             &[
                 VertexAttribute::new("in_pos", miniquad::VertexFormat::Float2),
@@ -126,12 +246,16 @@ impl<T: EventListener> RendererContext<T> {
             PipelineParams::default(),
         );
 
+        // Drop context so we can use the immutable ref
+        drop(backend_mut);
+
         RendererContext {
+            draw_context: DrawContext::new(white_texture),
+            texture_context: TextureContext::new(backend.clone()),
             app_listener,
             pipeline,
             bindings,
-            context,
-            draw_context: DrawContext::default(),
+            backend,
             last_update_time: miniquad::date::now(),
         }
     }
@@ -141,13 +265,14 @@ impl<T: EventListener> EventHandler for RendererContext<T> {
     fn update(&mut self) {
         let current_time = miniquad::date::now();
         self.app_listener
-            .update(current_time - self.last_update_time);
+            .update(&self.texture_context, current_time - self.last_update_time);
         self.last_update_time = current_time;
     }
 
     fn draw(&mut self) {
         self.app_listener.draw(&mut self.draw_context);
 
+        let mut context = self.backend.borrow_mut();
         let (width, height) = miniquad::window::screen_size();
         let dpi = miniquad::window::dpi_scale();
         let uniforms = Uniforms {
@@ -155,27 +280,37 @@ impl<T: EventListener> EventHandler for RendererContext<T> {
             projection: glam::Mat4::orthographic_rh_gl(0., width / dpi, height / dpi, 0., -1., 1.),
         };
 
-        self.context.begin_default_pass(Default::default());
+        for draw_call in &self.draw_context.draw_call_vec {
+            context.begin_default_pass(Default::default());
 
-        self.context.apply_pipeline(&self.pipeline);
-        self.context.apply_bindings(&self.bindings);
+            context.buffer_update(
+                self.bindings.vertex_buffers[0],
+                miniquad::BufferSource::slice(
+                    &self.draw_context.vertex_buffer[draw_call.vertex_indices_slice.offset
+                        ..(draw_call.vertex_indices_slice.offset
+                            + draw_call.vertex_indices_slice.length)],
+                ),
+            );
+            context.buffer_update(
+                self.bindings.index_buffer,
+                miniquad::BufferSource::slice(
+                    &self.draw_context.index_buffer[draw_call.index_indices_slice.offset
+                        ..(draw_call.index_indices_slice.offset
+                            + draw_call.index_indices_slice.length)],
+                ),
+            );
+            self.bindings.images[0] = draw_call.texture;
 
-        self.context.buffer_update(
-            self.bindings.vertex_buffers[0],
-            miniquad::BufferSource::slice(&self.draw_context.vertex_buffer),
-        );
-        self.context.buffer_update(
-            self.bindings.index_buffer,
-            miniquad::BufferSource::slice(&self.draw_context.index_buffer),
-        );
+            context.apply_pipeline(&self.pipeline);
+            context.apply_bindings(&self.bindings);
+            context.apply_uniforms(UniformsSource::table(&uniforms));
 
-        self.context
-            .apply_uniforms(UniformsSource::table(&uniforms));
-        self.context.draw(0, 6, 1);
+            context.draw(0, draw_call.index_indices_slice.length as i32, 1);
 
-        self.context.end_render_pass();
-        self.context.commit_frame();
+            context.end_render_pass();
+        }
 
+        context.commit_frame();
         self.draw_context.clear();
     }
 }
