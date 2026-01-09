@@ -3,7 +3,8 @@ use miniquad::TextureId;
 use porcelain::{
     color::Color,
     conf::WindowConfig,
-    render::{DrawContext, EventListener, TextureContext},
+    render::{DrawContext, EventListener},
+    texture::TextureContext,
 };
 
 struct AppState {

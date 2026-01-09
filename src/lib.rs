@@ -6,6 +6,7 @@ use crate::{
 pub mod color;
 pub mod conf;
 pub mod render;
+pub mod texture;
 mod shader;
 
 pub fn start<T: EventListener + 'static>(config: WindowConfig, user_state: T) {
