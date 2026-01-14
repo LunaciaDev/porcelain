@@ -57,6 +57,8 @@ pub struct DrawContext {
     index_buffer: Vec<u16>,
     draw_call_vec: Vec<DrawCall>,
     default_texture: TextureId,
+
+    draw_call_vertex_limit: usize,
 }
 
 pub struct RendererContext<T> {
@@ -83,19 +85,28 @@ impl DrawCall {
 }
 
 impl DrawContext {
-    fn new(default_texture: TextureId) -> Self {
+    fn new(default_texture: TextureId, draw_call_vertex_limit: usize) -> Self {
         Self {
-            vertex_buffer: Vec::with_capacity(10000),
-            index_buffer: Vec::with_capacity(10000),
+            // Pre-allocate for 5k vertices; This can be extended, the limit is per draw-call.
+            vertex_buffer: Vec::with_capacity(5000),
+            index_buffer: Vec::with_capacity(5000),
             draw_call_vec: Vec::new(),
+            draw_call_vertex_limit,
             default_texture,
         }
     }
 
     fn create_draw_call(&mut self, vertices: Box<[Vertex]>, indices: &[u16], texture: TextureId) {
+        // throw if a single call is too large
+        // [TODO] Since the lib's draw call will never exceed this size, move the check to user-supplied vertices
+        assert!(vertices.len() < self.draw_call_vertex_limit);
+
         match self.draw_call_vec.last() {
             Some(draw_call) => {
-                if draw_call.texture != texture {
+                if draw_call.texture != texture
+                    || draw_call.vertex_indices_slice.length + vertices.len()
+                        > self.draw_call_vertex_limit
+                {
                     self.draw_call_vec.push(DrawCall::new(texture));
                 }
             }
@@ -181,7 +192,7 @@ impl DrawContext {
 }
 
 impl<T: EventListener> RendererContext<T> {
-    pub fn new(app_listener: T) -> RendererContext<T> {
+    pub fn new(draw_call_limit: usize, app_listener: T) -> RendererContext<T> {
         let backend = Rc::new(RefCell::new(window::new_rendering_backend()));
 
         let backend_info = backend.borrow().info().backend;
@@ -237,7 +248,7 @@ impl<T: EventListener> RendererContext<T> {
         drop(backend_mut);
 
         RendererContext {
-            draw_context: DrawContext::new(white_texture),
+            draw_context: DrawContext::new(white_texture, draw_call_limit),
             texture_context: TextureContext::new(backend.clone()),
             app_listener,
             pipeline,

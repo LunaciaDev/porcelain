@@ -6,10 +6,11 @@ use crate::{
 pub mod color;
 pub mod conf;
 pub mod render;
-pub mod texture;
 mod shader;
+pub mod texture;
 
 pub fn start<T: EventListener + 'static>(config: WindowConfig, user_state: T) {
+    let draw_call_limit = config.draw_call_size_limit;
     let mut conf: miniquad::conf::Conf = config.into();
 
     let metal = std::env::args().nth(1).as_deref() == Some("metal");
@@ -19,5 +20,7 @@ pub fn start<T: EventListener + 'static>(config: WindowConfig, user_state: T) {
         miniquad::conf::AppleGfxApi::OpenGl
     };
 
-    miniquad::start(conf, move || Box::new(RendererContext::new(user_state)));
+    miniquad::start(conf, move || {
+        Box::new(RendererContext::new(draw_call_limit, user_state))
+    });
 }

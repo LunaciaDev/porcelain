@@ -7,6 +7,9 @@ pub struct WindowConfig {
     pub high_dpi: bool,
     pub fullscreen: bool,
     pub resizable: bool,
+
+    // [TODO] Separate this into a struct if more field is needed
+    pub draw_call_size_limit: usize,
 }
 
 impl Default for WindowConfig {
@@ -18,6 +21,8 @@ impl Default for WindowConfig {
             high_dpi: false,
             fullscreen: false,
             resizable: false,
+
+            draw_call_size_limit: 10000,
         }
     }
 }
