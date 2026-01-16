@@ -47,7 +47,6 @@ impl EventListener for AppState {
 fn main() {
     let window_config = WindowConfig {
         window_title: "App".to_string(),
-        draw_call_size_limit: 5,
         ..Default::default()
     };
 

@@ -9,8 +9,8 @@ pub struct WindowConfig {
     pub fullscreen: bool,
     pub resizable: bool,
 
-    // [TODO] Separate this into a struct if more field is needed
-    pub draw_call_size_limit: usize,
+    pub max_vertices_per_draw: usize,
+    pub max_indices_per_draw: usize,
 }
 
 impl Default for WindowConfig {
@@ -23,7 +23,8 @@ impl Default for WindowConfig {
             fullscreen: false,
             resizable: false,
 
-            draw_call_size_limit: 10000,
+            max_vertices_per_draw: 10000,
+            max_indices_per_draw: 30000
         }
     }
 }

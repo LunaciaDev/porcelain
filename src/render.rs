@@ -59,7 +59,8 @@ pub struct DrawContext {
     draw_call_vec: Vec<DrawCall>,
     default_texture: TextureId,
 
-    draw_call_vertex_limit: usize,
+    max_vertex_per_call: usize,
+    max_index_per_call: usize,
 }
 
 pub struct RendererContext<T> {
@@ -93,13 +94,18 @@ impl DrawCall {
 }
 
 impl DrawContext {
-    fn new(default_texture: TextureId, draw_call_vertex_limit: usize) -> Self {
+    fn new(
+        default_texture: TextureId,
+        max_vertex_per_call: usize,
+        max_index_per_call: usize,
+    ) -> Self {
         Self {
             // Pre-allocate for 5k vertices; This can be extended, the limit is per draw-call.
             vertex_buffer: Vec::with_capacity(5000),
             index_buffer: Vec::with_capacity(5000),
             draw_call_vec: Vec::new(),
-            draw_call_vertex_limit,
+            max_vertex_per_call,
+            max_index_per_call,
             default_texture,
         }
     }
@@ -107,13 +113,16 @@ impl DrawContext {
     fn create_draw_call(&mut self, vertices: Box<[Vertex]>, indices: &[u16], texture: TextureId) {
         // throw if a single call is too large
         // [TODO] Since the lib's draw call will never exceed this size, move the check to user-supplied vertices
-        assert!(vertices.len() < self.draw_call_vertex_limit);
+        assert!(vertices.len() < self.max_vertex_per_call);
+        assert!(indices.len() < self.max_index_per_call);
 
         match self.draw_call_vec.last() {
             Some(draw_call) => {
                 if draw_call.texture != texture
                     || draw_call.vertex_indices_slice.length + vertices.len()
-                        > self.draw_call_vertex_limit
+                        > self.max_vertex_per_call
+                    || draw_call.index_indices_slice.length + indices.len()
+                        > self.max_index_per_call
                 {
                     self.draw_call_vec.push(DrawCall::new(
                         texture,
@@ -218,13 +227,13 @@ impl<T: EventListener> RendererContext<T> {
         let vertex_buffer = backend_mut.new_buffer(
             miniquad::BufferType::VertexBuffer,
             miniquad::BufferUsage::Stream,
-            miniquad::BufferSource::empty::<Vertex>(4),
+            miniquad::BufferSource::empty::<Vertex>(config.max_vertices_per_draw),
         );
 
         let index_buffer = backend_mut.new_buffer(
             miniquad::BufferType::IndexBuffer,
             miniquad::BufferUsage::Stream,
-            miniquad::BufferSource::empty::<u16>(6),
+            miniquad::BufferSource::empty::<u16>(config.max_indices_per_draw),
         );
 
         let bindings = Bindings {
@@ -266,7 +275,11 @@ impl<T: EventListener> RendererContext<T> {
         let dpi = miniquad::window::dpi_scale();
 
         RendererContext {
-            draw_context: DrawContext::new(white_texture, config.draw_call_size_limit),
+            draw_context: DrawContext::new(
+                white_texture,
+                config.max_vertices_per_draw,
+                config.max_indices_per_draw,
+            ),
             texture_context: TextureContext::new(backend.clone()),
             app_listener,
             uniform: Uniforms {
