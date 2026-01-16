@@ -32,12 +32,22 @@ impl EventListener for AppState {
             self.rect_rot,
             Color::from_rgba8(255, 255, 255, 255),
         );
+
+        draw_context.draw_rect_ext(
+            self.rect_pos[0] + 200.,
+            self.rect_pos[1] + 200.,
+            self.rect_size[0],
+            self.rect_size[1],
+            self.rect_rot,
+            Color::from_rgba8(255, 0, 0, 255),
+        );
     }
 }
 
 fn main() {
     let window_config = WindowConfig {
         window_title: "App".to_string(),
+        draw_call_size_limit: 5,
         ..Default::default()
     };
 

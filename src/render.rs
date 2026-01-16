@@ -75,11 +75,17 @@ pub struct RendererContext<T> {
 }
 
 impl DrawCall {
-    fn new(texture: TextureId) -> Self {
+    fn new(texture: TextureId, vertex_offset: usize, index_offset: usize) -> Self {
         Self {
             texture,
-            vertex_indices_slice: Default::default(),
-            index_indices_slice: Default::default(),
+            vertex_indices_slice: VecSlice {
+                offset: vertex_offset,
+                length: 0,
+            },
+            index_indices_slice: VecSlice {
+                offset: index_offset,
+                length: 0,
+            },
         }
     }
 }
@@ -107,10 +113,18 @@ impl DrawContext {
                     || draw_call.vertex_indices_slice.length + vertices.len()
                         > self.draw_call_vertex_limit
                 {
-                    self.draw_call_vec.push(DrawCall::new(texture));
+                    self.draw_call_vec.push(DrawCall::new(
+                        texture,
+                        self.vertex_buffer.len(),
+                        self.index_buffer.len(),
+                    ));
                 }
             }
-            None => self.draw_call_vec.push(DrawCall::new(texture)),
+            None => self.draw_call_vec.push(DrawCall::new(
+                texture,
+                self.vertex_buffer.len(),
+                self.index_buffer.len(),
+            )),
         }
 
         let current_draw_call = self
@@ -146,7 +160,6 @@ impl DrawContext {
         self.create_draw_call(vertices, &indices, self.default_texture);
     }
 
-    // Rotation in degrees
     pub fn draw_rect_ext(&mut self, x: f32, y: f32, w: f32, h: f32, rotation: f32, color: Color) {
         let transform_matrix =
             Affine2::from_angle_translation(rotation.to_radians(), Vec2::new(x, y));
@@ -278,8 +291,12 @@ impl<T: EventListener> EventHandler for RendererContext<T> {
             projection: glam::Mat4::orthographic_rh_gl(0., width / dpi, height / dpi, 0., -1., 1.),
         };
 
+        // [TODO] Expose the clear color to the user
+        // Technically can be exposed via drawing a rect but
+        context.clear(Some((0., 0., 0., 255.)), None, None);
+
         for draw_call in &self.draw_context.draw_call_vec {
-            context.begin_default_pass(Default::default());
+            context.begin_default_pass(miniquad::PassAction::Nothing);
 
             context.buffer_update(
                 self.bindings.vertex_buffers[0],
