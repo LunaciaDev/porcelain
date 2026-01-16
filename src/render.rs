@@ -2,10 +2,11 @@ use std::{cell::RefCell, rc::Rc, vec};
 
 use crate::{
     color::Color,
+    conf::WindowConfig,
     shader::{self, Uniforms},
     texture::TextureContext,
 };
-use glam::{Affine2, Vec2};
+use glam::{Affine2, Mat4, Vec2};
 use miniquad::{
     Bindings, BufferLayout, EventHandler, Pipeline, PipelineParams, RenderingBackend, TextureId,
     UniformsSource, VertexAttribute, window,
@@ -71,6 +72,7 @@ pub struct RendererContext<T> {
 
     pipeline: Pipeline,
     bindings: Bindings,
+    uniform: Uniforms,
     backend: Rc<RefCell<Box<dyn RenderingBackend>>>,
 }
 
@@ -205,7 +207,7 @@ impl DrawContext {
 }
 
 impl<T: EventListener> RendererContext<T> {
-    pub fn new(draw_call_limit: usize, app_listener: T) -> RendererContext<T> {
+    pub fn new(config: WindowConfig, app_listener: T) -> RendererContext<T> {
         let backend = Rc::new(RefCell::new(window::new_rendering_backend()));
 
         let backend_info = backend.borrow().info().backend;
@@ -260,10 +262,17 @@ impl<T: EventListener> RendererContext<T> {
         // Drop context so we can use the immutable ref
         drop(backend_mut);
 
+        let (width, height) = miniquad::window::screen_size();
+        let dpi = miniquad::window::dpi_scale();
+
         RendererContext {
-            draw_context: DrawContext::new(white_texture, draw_call_limit),
+            draw_context: DrawContext::new(white_texture, config.draw_call_size_limit),
             texture_context: TextureContext::new(backend.clone()),
             app_listener,
+            uniform: Uniforms {
+                model: Mat4::IDENTITY,
+                projection: Mat4::orthographic_rh_gl(0., width / dpi, height / dpi, 0., -1., 1.),
+            },
             pipeline,
             bindings,
             backend,
@@ -273,6 +282,13 @@ impl<T: EventListener> RendererContext<T> {
 }
 
 impl<T: EventListener> EventHandler for RendererContext<T> {
+    fn resize_event(&mut self, width: f32, height: f32) {
+        let dpi = miniquad::window::dpi_scale();
+
+        self.uniform.projection =
+            Mat4::orthographic_rh_gl(0., width / dpi, height / dpi, 0., -1., 1.);
+    }
+
     fn update(&mut self) {
         let current_time = miniquad::date::now();
         self.app_listener
@@ -284,12 +300,6 @@ impl<T: EventListener> EventHandler for RendererContext<T> {
         self.app_listener.draw(&mut self.draw_context);
 
         let mut context = self.backend.borrow_mut();
-        let (width, height) = miniquad::window::screen_size();
-        let dpi = miniquad::window::dpi_scale();
-        let uniforms = Uniforms {
-            model: glam::Mat4::IDENTITY,
-            projection: glam::Mat4::orthographic_rh_gl(0., width / dpi, height / dpi, 0., -1., 1.),
-        };
 
         // [TODO] Expose the clear color to the user
         // Technically can be exposed via drawing a rect but
@@ -318,7 +328,7 @@ impl<T: EventListener> EventHandler for RendererContext<T> {
 
             context.apply_pipeline(&self.pipeline);
             context.apply_bindings(&self.bindings);
-            context.apply_uniforms(UniformsSource::table(&uniforms));
+            context.apply_uniforms(UniformsSource::table(&self.uniform));
 
             context.draw(0, draw_call.index_indices_slice.length as i32, 1);
 

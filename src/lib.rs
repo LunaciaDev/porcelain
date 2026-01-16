@@ -10,7 +10,7 @@ mod shader;
 pub mod texture;
 
 pub fn start<T: EventListener + 'static>(config: WindowConfig, user_state: T) {
-    let draw_call_limit = config.draw_call_size_limit;
+    let config_cloned = config.clone();
     let mut conf: miniquad::conf::Conf = config.into();
 
     let metal = std::env::args().nth(1).as_deref() == Some("metal");
@@ -21,6 +21,6 @@ pub fn start<T: EventListener + 'static>(config: WindowConfig, user_state: T) {
     };
 
     miniquad::start(conf, move || {
-        Box::new(RendererContext::new(draw_call_limit, user_state))
+        Box::new(RendererContext::new(config_cloned, user_state))
     });
 }

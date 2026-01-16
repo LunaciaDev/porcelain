@@ -1,5 +1,6 @@
 use miniquad::conf::{Conf, Platform};
 
+#[derive(Clone)]
 pub struct WindowConfig {
     pub window_title: String,
     pub window_width: i32,
