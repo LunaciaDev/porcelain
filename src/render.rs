@@ -1,6 +1,7 @@
-use std::{cell::RefCell, rc::Rc, vec};
+use std::{cell::RefCell, f32::consts::PI, rc::Rc, vec};
 
 use crate::{
+    Pivot,
     color::Color,
     conf::WindowConfig,
     shader::{self, Uniforms},
@@ -171,9 +172,9 @@ impl DrawContext {
         self.create_draw_call(vertices, &indices, self.default_texture);
     }
 
-    pub fn draw_rect_ext(&mut self, x: f32, y: f32, w: f32, h: f32, rotation: f32, color: Color) {
+    pub fn draw_rect_ext(&mut self, pivot: Pivot, w: f32, h: f32, rotation: f32, color: Color) {
         let transform_matrix =
-            Affine2::from_angle_translation(rotation.to_radians(), Vec2::new(x, y));
+            Affine2::from_angle_translation(rotation.to_radians(), Vec2::new(pivot.x, pivot.y));
         #[rustfmt::skip]
         let vertices = [
             Vec2::new(-w/2., -h/2.),
@@ -191,6 +192,73 @@ impl DrawContext {
         let indices: [u16; 6] = [0, 1, 3, 0, 3, 2];
 
         self.create_draw_call(vertices, &indices, self.default_texture);
+    }
+
+    pub fn draw_circle_arc(
+        &mut self,
+        pivot: Pivot,
+        radius: f32,
+        begin_angle: f32,
+        arc_size: f32,
+        color: Color,
+    ) {
+        let begin_angle = (begin_angle - 90.).to_radians();
+        let arc_size = arc_size.clamp(0., 360.).to_radians();
+
+        // A good-enough circle approx is a 36-sided regular polygon
+        // So we can scale down the amount of sides needed based on the arc_size to save vertices.
+
+        let sides = (36. * (arc_size / (2. * PI))).ceil() as u8;
+
+        let mut vertices: Vec<Vertex> = Vec::with_capacity((sides + 1) as usize);
+        let mut indices: Vec<u16> = Vec::with_capacity((sides * 3) as usize);
+
+        vertices.push(Vertex::new(pivot.x, pivot.y, 0., 0., color));
+        for i in 0..sides {
+            vertices.push(Vertex::new(
+                pivot.x + radius * (i as f32 / (sides - 1) as f32 * arc_size + begin_angle).cos(),
+                pivot.y + radius * (i as f32 / (sides - 1) as f32 * arc_size + begin_angle).sin(),
+                0.,
+                0.,
+                color,
+            ));
+
+            indices.extend([0, (i % sides) as u16 + 1, ((i + 1) % sides) as u16 + 1]);
+        }
+
+        self.create_draw_call(
+            vertices.into_boxed_slice(),
+            indices.as_slice(),
+            self.default_texture,
+        );
+    }
+
+    pub fn draw_circle(&mut self, pivot: Pivot, radius: f32, color: Color) {
+        self.draw_poly(pivot, radius, 40, color);
+    }
+
+    pub fn draw_poly(&mut self, pivot: Pivot, radius: f32, sides: u8, color: Color) {
+        let mut vertices: Vec<Vertex> = Vec::with_capacity((sides + 1) as usize);
+        let mut indices: Vec<u16> = Vec::with_capacity((sides * 3) as usize);
+
+        vertices.push(Vertex::new(pivot.x, pivot.y, 0., 0., color));
+        for i in 0..sides {
+            vertices.push(Vertex::new(
+                pivot.x + radius * (i as f32 / sides as f32 * PI * 2.).cos(),
+                pivot.y + radius * (i as f32 / sides as f32 * PI * 2.).sin(),
+                0.,
+                0.,
+                color,
+            ));
+
+            indices.extend([0, (i % sides) as u16 + 1, ((i + 1) % sides) as u16 + 1]);
+        }
+
+        self.create_draw_call(
+            vertices.into_boxed_slice(),
+            indices.as_slice(),
+            self.default_texture,
+        );
     }
 
     pub fn draw_texture(

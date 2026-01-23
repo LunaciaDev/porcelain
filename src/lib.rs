@@ -9,6 +9,11 @@ pub mod render;
 mod shader;
 pub mod texture;
 
+pub struct Pivot {
+    pub x: f32,
+    pub y: f32
+}
+
 pub fn start<T: EventListener + 'static>(config: WindowConfig, user_state: T) {
     let config_cloned = config.clone();
     let mut conf: miniquad::conf::Conf = config.into();
