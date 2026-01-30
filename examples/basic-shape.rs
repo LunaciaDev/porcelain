@@ -8,6 +8,7 @@ impl EventListener for AppState {
     }
 
     fn draw(&self, draw_context: &mut porcelain::render::DrawContext) {
+        // Rectangle, using pivot-based drawing
         draw_context.draw_rect_ext(
             Pivot { x: 200., y: 125. },
             150.,
@@ -15,6 +16,7 @@ impl EventListener for AppState {
             25.,
             Color::from_rgba8(255, 0, 0, 255),
         );
+        // Rectangle, using corner spec
         draw_context.draw_rect(
             1200.,
             300.,
@@ -22,23 +24,35 @@ impl EventListener for AppState {
             200.,
             Color::from_rgba8(128, 128, 65, 255),
         );
+        // Triangle
         draw_context.draw_poly(
             Pivot { x: 300., y: 400. },
             200.,
             3,
             Color::from_rgba8(56, 122, 243, 255),
         );
+        // Hexagon
         draw_context.draw_poly(
-            Pivot { x: 600., y: 600. },
+            Pivot { x: 600., y: 800. },
             200.,
             6,
             Color::from_rgba8(182, 35, 133, 255),
         );
+        // Triangle Rotated by 45 degree
+        draw_context.draw_poly_ext(
+            Pivot { x: 1200., y: 800. },
+            250.,
+            3,
+            45.,
+            Color::from_rgba8(125, 182, 199, 255),
+        );
+        // Circle approximation
         draw_context.draw_circle(
             Pivot { x: 600., y: 200. },
             75.,
             Color::from_rgba8(128, 128, 192, 255),
         );
+        // Half circle
         draw_context.draw_circle_arc(
             Pivot { x: 900., y: 300. },
             100.,

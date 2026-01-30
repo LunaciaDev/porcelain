@@ -238,14 +238,27 @@ impl DrawContext {
     }
 
     pub fn draw_poly(&mut self, pivot: Pivot, radius: f32, sides: u8, color: Color) {
+        self.draw_poly_ext(pivot, radius, sides, 0., color);
+    }
+
+    pub fn draw_poly_ext(
+        &mut self,
+        pivot: Pivot,
+        radius: f32,
+        sides: u8,
+        rotation: f32,
+        color: Color,
+    ) {
+        let rotation = (rotation - 90.).to_radians();
+
         let mut vertices: Vec<Vertex> = Vec::with_capacity((sides + 1) as usize);
         let mut indices: Vec<u16> = Vec::with_capacity((sides * 3) as usize);
 
         vertices.push(Vertex::new(pivot.x, pivot.y, 0., 0., color));
         for i in 0..sides {
             vertices.push(Vertex::new(
-                pivot.x + radius * (i as f32 / sides as f32 * PI * 2.).cos(),
-                pivot.y + radius * (i as f32 / sides as f32 * PI * 2.).sin(),
+                pivot.x + radius * (i as f32 / sides as f32 * 2. * PI + rotation).cos(),
+                pivot.y + radius * (i as f32 / sides as f32 * 2. * PI + rotation).sin(),
                 0.,
                 0.,
                 color,
