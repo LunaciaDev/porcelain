@@ -9,7 +9,7 @@ pub mod render;
 mod shader;
 pub mod texture;
 
-pub struct Pivot {
+pub struct Point {
     pub x: f32,
     pub y: f32
 }

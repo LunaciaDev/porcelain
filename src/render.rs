@@ -1,7 +1,7 @@
 use std::{cell::RefCell, f32::consts::PI, rc::Rc, vec};
 
 use crate::{
-    Pivot,
+    Point,
     color::Color,
     conf::WindowConfig,
     shader::{self, Uniforms},
@@ -172,7 +172,7 @@ impl DrawContext {
         self.create_draw_call(vertices, &indices, self.default_texture);
     }
 
-    pub fn draw_rect_ext(&mut self, pivot: Pivot, w: f32, h: f32, rotation: f32, color: Color) {
+    pub fn draw_rect_ext(&mut self, pivot: Point, w: f32, h: f32, rotation: f32, color: Color) {
         let transform_matrix =
             Affine2::from_angle_translation(rotation.to_radians(), Vec2::new(pivot.x, pivot.y));
         #[rustfmt::skip]
@@ -196,7 +196,7 @@ impl DrawContext {
 
     pub fn draw_circle_arc(
         &mut self,
-        pivot: Pivot,
+        pivot: Point,
         radius: f32,
         begin_angle: f32,
         arc_size: f32,
@@ -233,17 +233,17 @@ impl DrawContext {
         );
     }
 
-    pub fn draw_circle(&mut self, pivot: Pivot, radius: f32, color: Color) {
+    pub fn draw_circle(&mut self, pivot: Point, radius: f32, color: Color) {
         self.draw_poly(pivot, radius, 40, color);
     }
 
-    pub fn draw_poly(&mut self, pivot: Pivot, radius: f32, sides: u8, color: Color) {
+    pub fn draw_poly(&mut self, pivot: Point, radius: f32, sides: u8, color: Color) {
         self.draw_poly_ext(pivot, radius, sides, 0., color);
     }
 
     pub fn draw_poly_ext(
         &mut self,
-        pivot: Pivot,
+        pivot: Point,
         radius: f32,
         sides: u8,
         rotation: f32,
@@ -272,6 +272,40 @@ impl DrawContext {
             indices.as_slice(),
             self.default_texture,
         );
+    }
+
+    pub fn draw_line(
+        &mut self,
+        start_point: Point,
+        end_point: Point,
+        thickness: f32,
+        color: Color,
+    ) {
+        // Perpendicular vector is (-dx, dy)
+
+        let dx = end_point.x - start_point.x;
+        let dy = end_point.y - start_point.y;
+
+        // Offset start/end point by half the thickness on the perpendicular vector
+        // Sign does not matter since it is a square
+        let dt = (dx * dx + dy * dy).sqrt() / (thickness / 2.);
+        if dt < f32::EPSILON {
+            // Number too small to work with
+            return;
+        }
+        let mx = (-dy) / dt;
+        let my = dx / dt;
+
+        #[rustfmt::skip]
+        let vertices = Box::new([
+            Vertex::new(start_point.x + mx, start_point.y + my, 0., 0., color),
+            Vertex::new(start_point.x - mx, start_point.y - my, 0., 0., color),
+            Vertex::new(  end_point.x + mx,   end_point.y + my, 0., 0., color),
+            Vertex::new(  end_point.x - mx,   end_point.y - my, 0., 0., color),
+        ]);
+        let indices: [u16; 6] = [0, 1, 3, 0, 3, 2];
+
+        self.create_draw_call(vertices, indices.as_slice(), self.default_texture);
     }
 
     pub fn draw_texture(
