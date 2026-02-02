@@ -10,7 +10,7 @@ impl EventListener for AppState {
     fn draw(&self, draw_context: &mut porcelain::render::DrawContext) {
         // Rectangle, using pivot-based drawing
         draw_context.draw_rect_ext(
-            Point { x: 200., y: 125. },
+            &Point { x: 200., y: 125. },
             150.,
             100.,
             25.,
@@ -26,21 +26,21 @@ impl EventListener for AppState {
         );
         // Triangle
         draw_context.draw_poly(
-            Point { x: 300., y: 400. },
+            &Point { x: 300., y: 400. },
             200.,
             3,
             Color::from_rgba8(56, 122, 243, 255),
         );
         // Hexagon
         draw_context.draw_poly(
-            Point { x: 600., y: 800. },
+            &Point { x: 600., y: 800. },
             200.,
             6,
             Color::from_rgba8(182, 35, 133, 255),
         );
         // Triangle Rotated by 45 degree
         draw_context.draw_poly_ext(
-            Point { x: 1200., y: 800. },
+            &Point { x: 1200., y: 800. },
             250.,
             3,
             45.,
@@ -48,13 +48,13 @@ impl EventListener for AppState {
         );
         // Circle approximation
         draw_context.draw_circle(
-            Point { x: 600., y: 200. },
+            &Point { x: 600., y: 200. },
             75.,
             Color::from_rgba8(128, 128, 192, 255),
         );
         // Half circle
         draw_context.draw_circle_arc(
-            Point { x: 900., y: 300. },
+            &Point { x: 900., y: 300. },
             100.,
             90.,
             180.,
@@ -62,8 +62,8 @@ impl EventListener for AppState {
         );
         // Line
         draw_context.draw_line(
-            Point { x: 150., y: 800. },
-            Point { x: 300., y: 1000. },
+            &Point { x: 150., y: 800. },
+            &Point { x: 300., y: 1000. },
             10.,
             Color::from_rgba8(125, 113, 129, 255),
         );

@@ -94,6 +94,8 @@ impl DrawCall {
     }
 }
 
+// [FIXME]: Color is being moved by call when not needed. Switch to reference taking instead.
+
 impl DrawContext {
     fn new(
         default_texture: TextureId,
@@ -172,7 +174,7 @@ impl DrawContext {
         self.create_draw_call(vertices, &indices, self.default_texture);
     }
 
-    pub fn draw_rect_ext(&mut self, pivot: Point, w: f32, h: f32, rotation: f32, color: Color) {
+    pub fn draw_rect_ext(&mut self, pivot: &Point, w: f32, h: f32, rotation: f32, color: Color) {
         let transform_matrix =
             Affine2::from_angle_translation(rotation.to_radians(), Vec2::new(pivot.x, pivot.y));
         #[rustfmt::skip]
@@ -196,7 +198,7 @@ impl DrawContext {
 
     pub fn draw_circle_arc(
         &mut self,
-        pivot: Point,
+        pivot: &Point,
         radius: f32,
         begin_angle: f32,
         arc_size: f32,
@@ -233,17 +235,17 @@ impl DrawContext {
         );
     }
 
-    pub fn draw_circle(&mut self, pivot: Point, radius: f32, color: Color) {
+    pub fn draw_circle(&mut self, pivot: &Point, radius: f32, color: Color) {
         self.draw_poly(pivot, radius, 40, color);
     }
 
-    pub fn draw_poly(&mut self, pivot: Point, radius: f32, sides: u8, color: Color) {
+    pub fn draw_poly(&mut self, pivot: &Point, radius: f32, sides: u8, color: Color) {
         self.draw_poly_ext(pivot, radius, sides, 0., color);
     }
 
     pub fn draw_poly_ext(
         &mut self,
-        pivot: Point,
+        pivot: &Point,
         radius: f32,
         sides: u8,
         rotation: f32,
@@ -276,8 +278,8 @@ impl DrawContext {
 
     pub fn draw_line(
         &mut self,
-        start_point: Point,
-        end_point: Point,
+        start_point: &Point,
+        end_point: &Point,
         thickness: f32,
         color: Color,
     ) {
